@@ -776,6 +776,38 @@ class TestPaths:
         result = path_exclusion(proj, 0, 1)
         assert result["boolean_operation"]["type"] == "exclusion"
 
+    def test_boolean_preserves_geometry_from_rect(self):
+        """Boolean op on a rect must not collapse geometry to 'M 0,0'."""
+        proj = create_document()
+        add_rect(proj, x=10, y=20, width=80, height=60)
+        add_circle(proj, cx=50, cy=50, r=30)
+        result = path_union(proj, 0, 1)
+        # The result's 'd' must encode the rect geometry, not a bare placeholder
+        assert result["d"] != "M 0,0"
+        assert "M" in result["d"]
+        # Both source geometries must be stored for Inkscape rendering
+        assert result["boolean_operation"]["source_a_d"] != "M 0,0"
+        assert result["boolean_operation"]["source_b_d"] != "M 0,0"
+
+    def test_boolean_preserves_geometry_from_circle(self):
+        """Boolean op on a circle must not collapse geometry to 'M 0,0'."""
+        proj = create_document()
+        add_circle(proj, cx=50, cy=50, r=40)
+        add_rect(proj, x=20, y=20, width=60, height=60)
+        result = path_difference(proj, 0, 1)
+        assert result["d"] != "M 0,0"
+        assert "A" in result["d"]  # circle path uses arcs
+
+    def test_boolean_preserves_geometry_from_path_objects(self):
+        """Boolean op on existing path objects must keep their 'd' data."""
+        proj = create_document()
+        add_path(proj, d="M 10,10 L 90,10 L 90,90 Z")
+        add_path(proj, d="M 20,20 L 80,20 L 80,80 Z")
+        result = path_intersection(proj, 0, 1)
+        assert result["d"] == "M 10,10 L 90,10 L 90,90 Z"
+        assert result["boolean_operation"]["source_a_d"] == "M 10,10 L 90,10 L 90,90 Z"
+        assert result["boolean_operation"]["source_b_d"] == "M 20,20 L 80,20 L 80,80 Z"
+
     def test_boolean_same_object_fails(self):
         proj = self._make_doc_with_shapes()
         with pytest.raises(ValueError, match="same object"):

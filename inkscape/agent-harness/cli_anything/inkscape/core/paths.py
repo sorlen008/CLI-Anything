@@ -162,20 +162,29 @@ def _path_boolean(
     obj_a = objects[index_a]
     obj_b = objects[index_b]
 
+    # Compute path data for each source before they are removed.  Non-path
+    # shapes (rect, circle, …) have no "d" field, so we derive it from their
+    # geometry.  Without this step the result object would always get "M 0,0"
+    # and all position/size information would be lost.
+    d_a = obj_a.get("d") if obj_a.get("type") == "path" else _shape_to_path_data(obj_a)
+    d_b = obj_b.get("d") if obj_b.get("type") == "path" else _shape_to_path_data(obj_b)
+
     # Create a new path object representing the boolean result
     obj_id = generate_id("path")
     result_obj = {
         "id": obj_id,
         "name": name or f"{operation}_{obj_a.get('name', '')}_{obj_b.get('name', '')}",
         "type": "path",
-        "d": obj_a.get("d", "M 0,0"),  # Placeholder
+        "d": d_a or "M 0,0",
         "style": obj_a.get("style", ""),
-        "transform": "",
+        "transform": obj_a.get("transform", ""),
         "layer": obj_a.get("layer", ""),
         "boolean_operation": {
             "type": operation,
             "source_a": obj_a.get("id", ""),
             "source_b": obj_b.get("id", ""),
+            "source_a_d": d_a or "M 0,0",
+            "source_b_d": d_b or "M 0,0",
             "inkscape_action": PATH_OPERATIONS[operation]["inkscape_action"],
         },
     }
