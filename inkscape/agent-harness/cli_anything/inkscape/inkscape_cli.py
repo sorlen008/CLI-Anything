@@ -39,6 +39,7 @@ from cli_anything.inkscape.core import export as export_mod
 _session: Optional[Session] = None
 _json_output = False
 _repl_mode = False
+_auto_save = False
 
 
 def get_session() -> Session:
@@ -120,14 +121,20 @@ def handle_error(func):
 @click.option("--json", "use_json", is_flag=True, help="Output as JSON")
 @click.option("--project", "project_path", type=str, default=None,
               help="Path to .inkscape-cli.json project file")
+@click.option("-s", "--save", "auto_save", is_flag=True,
+              help="Auto-save project after each mutation command (one-shot mode)")
 @click.pass_context
-def cli(ctx, use_json, project_path):
+def cli(ctx, use_json, project_path, auto_save):
     """Inkscape CLI — Stateful vector graphics editing from the command line.
 
     Run without a subcommand to enter interactive REPL mode.
+
+    Use -s/--save to automatically save changes after each mutation command.
+    This is useful in one-shot mode where each command runs in a new process.
     """
-    global _json_output
+    global _json_output, _auto_save
     _json_output = use_json
+    _auto_save = auto_save
 
     if project_path:
         sess = get_session()
@@ -135,8 +142,21 @@ def cli(ctx, use_json, project_path):
             proj = doc_mod.open_document(project_path)
             sess.set_project(proj, project_path)
 
+    ctx.call_on_close(_auto_save_callback)
+
     if ctx.invoked_subcommand is None:
         ctx.invoke(repl, project_path=None)
+
+
+def _auto_save_callback():
+    """Auto-save after each one-shot command when -s/--save is set."""
+    global _auto_save, _session
+    if _auto_save and _session is not None and _session._modified:
+        if not _repl_mode:
+            try:
+                _session.save_session()
+            except (RuntimeError, ValueError):
+                pass
 
 
 # ── Document Commands ───────────────────────────────────────────
